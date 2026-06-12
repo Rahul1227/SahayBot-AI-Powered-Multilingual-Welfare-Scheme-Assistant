@@ -5,10 +5,14 @@
 ![Platform: WhatsApp](https://img.shields.io/badge/Platform-WhatsApp-25D366?style=flat-square&logo=whatsapp&logoColor=white)
 ![Gemini 1.5 Flash](https://img.shields.io/badge/AI-Gemini%201.5%20Flash-4285F4?style=flat-square&logo=google&logoColor=white)
 ![Backend: Live](https://img.shields.io/badge/Backend-Live%20on%20Render-46E3B7?style=flat-square&logo=render&logoColor=white)
+![Frontend: Live](https://img.shields.io/badge/Frontend-Live%20on%20Netlify-00C7B7?style=flat-square&logo=netlify&logoColor=white)
 
 SahayBot is a RAG-powered multilingual chatbot that helps rural and low-income communities in India discover government welfare schemes they qualify for. It supports WhatsApp, SMS, and web interfaces, making it accessible regardless of device type or connectivity. Built for **NSS Open Project Challenge 1.1 — AI & Intelligent Systems**.
 
-**Live Backend:** https://sahaybot-ai-powered-multilingual-welfare.onrender.com
+| | URL |
+|---|---|
+| **Frontend (Web App)** | https://sahaybot.netlify.app |
+| **Backend API** | https://sahaybot-ai-powered-multilingual-welfare.onrender.com |
 
 ---
 
