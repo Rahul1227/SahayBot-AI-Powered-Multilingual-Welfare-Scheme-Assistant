@@ -4,8 +4,11 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
 ![Platform: WhatsApp](https://img.shields.io/badge/Platform-WhatsApp-25D366?style=flat-square&logo=whatsapp&logoColor=white)
 ![Gemini 1.5 Flash](https://img.shields.io/badge/AI-Gemini%201.5%20Flash-4285F4?style=flat-square&logo=google&logoColor=white)
+![Backend: Live](https://img.shields.io/badge/Backend-Live%20on%20Render-46E3B7?style=flat-square&logo=render&logoColor=white)
 
 SahayBot is a RAG-powered multilingual chatbot that helps rural and low-income communities in India discover government welfare schemes they qualify for. It supports WhatsApp, SMS, and web interfaces, making it accessible regardless of device type or connectivity. Built for **NSS Open Project Challenge 1.1 — AI & Intelligent Systems**.
+
+**Live Backend:** https://sahaybot-ai-powered-multilingual-welfare.onrender.com
 
 ---
 
@@ -78,8 +81,8 @@ welfare-chatbot/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/sahaybot.git
-cd sahaybot
+git clone https://github.com/Rahul1227/SahayBot-AI-Powered-Multilingual-Welfare-Scheme-Assistant.git
+cd SahayBot-AI-Powered-Multilingual-Welfare-Scheme-Assistant
 ```
 
 ### 2. Backend setup
@@ -126,34 +129,86 @@ npm install
 npm run dev
 ```
 
-Frontend runs at `http://localhost:5173`
+Frontend runs at `http://localhost:5173`. In development, Vite proxies all `/api/*` calls to `http://localhost:5000` automatically.
 
-### 4. WhatsApp Integration (Development)
+**Connecting to the live deployed backend** — for production builds, the frontend reads the backend URL from `frontend/.env.production` (already configured in this repo):
 
-Expose your local backend to the internet using localtunnel:
+```env
+VITE_API_URL=https://sahaybot-ai-powered-multilingual-welfare.onrender.com
+```
+
+To build the frontend against the live backend:
+
+```bash
+cd frontend
+npm run build   # picks up .env.production automatically
+```
+
+The `dist/` folder can be deployed to any static host (Vercel, Netlify, GitHub Pages, etc.).
+
+---
+
+### 4. WhatsApp Bot Setup (Twilio Sandbox)
+
+This section covers both **development** (localtunnel) and **production** (Render) configurations.
+
+#### Step 1 — Create a Twilio account
+
+1. Sign up at [twilio.com](https://www.twilio.com/try-twilio) (free trial, no credit card required).
+2. From the Twilio Console dashboard, note your **Account SID** and **Auth Token** — add these to your `.env` file.
+
+#### Step 2 — Enable the WhatsApp Sandbox
+
+1. In the Twilio Console, go to **Messaging → Try it out → Send a WhatsApp message**.
+2. You will see a sandbox number (usually `+1 415 523 8886`) and a unique **join keyword** like `join bright-tiger`.
+3. From your WhatsApp, send the following message to `+1 415 523 8886`:
+   ```
+   join <your-sandbox-keyword>
+   ```
+   You will receive a confirmation reply: *"You are now connected to the sandbox."*
+4. Any phone number that needs to test the bot must repeat this join step from their own WhatsApp.
+
+#### Step 3 — Set the webhook URL
+
+In the Twilio Console → **Messaging → Try it out → Send a WhatsApp message**, scroll to the **Sandbox Configuration** section:
+
+**If using the live Render deployment (recommended):**
+
+| Field | Value |
+|---|---|
+| When a message comes in | `https://sahaybot-ai-powered-multilingual-welfare.onrender.com/webhook/whatsapp` |
+| HTTP Method | `POST` |
+
+**If running locally with localtunnel (development):**
 
 ```bash
 npx localtunnel --port 5000 --subdomain sahaybot
 ```
 
-This gives you a public URL: `https://sahaybot.loca.lt`
+This gives you a temporary public URL: `https://sahaybot.loca.lt`
 
-In the **Twilio Console** → Messaging → Try it out → Send a WhatsApp message:
+| Field | Value |
+|---|---|
+| When a message comes in | `https://sahaybot.loca.lt/webhook/whatsapp` |
+| HTTP Method | `POST` |
 
-1. Set the **When a message comes in** webhook URL to:
-   ```
-   https://sahaybot.loca.lt/webhook/whatsapp
-   ```
-2. Set the HTTP method to **POST**
-3. Click **Save**
+Click **Save** after setting the webhook URL.
 
-To activate the sandbox, send the following from your WhatsApp to `+1 415 523 8886`:
+#### Step 4 — Test the bot
+
+Send any message from the joined WhatsApp number to `+1 415 523 8886`. SahayBot will respond with a language selection menu:
 
 ```
-join <your-sandbox-word>
+Welcome to SahayBot!
+Please choose your language:
+1 - English
+2 - हिन्दी
+3 - தமிழ்
 ```
 
-Your sandbox keyword is shown in the Twilio Console under WhatsApp Sandbox settings.
+Reply with `1`, `2`, or `3` to begin the eligibility flow.
+
+> **Note:** Render free-tier instances spin down after 15 minutes of inactivity. The first message after an idle period may take ~30 seconds to respond while the instance warms up. Subsequent messages in the same session will be fast.
 
 ---
 
@@ -218,6 +273,14 @@ Your sandbox keyword is shown in the Twilio Console under WhatsApp Sandbox setti
 
 ## Deployment (Render)
 
+The backend is already deployed at:
+
+```
+https://sahaybot-ai-powered-multilingual-welfare.onrender.com
+```
+
+To deploy your own instance:
+
 1. Push your code to a GitHub repository.
 2. Go to [render.com](https://render.com) → **New** → **Web Service**.
 3. Connect your GitHub repository.
@@ -232,6 +295,7 @@ Your sandbox keyword is shown in the Twilio Console under WhatsApp Sandbox setti
    ```
    https://your-app.onrender.com/webhook/whatsapp
    ```
+8. Update `frontend/.env.production` to point to your new backend URL and rebuild the frontend.
 
 > **Note:** Render free-tier instances spin down after 15 minutes of inactivity. The first WhatsApp message after idle may take ~30 seconds to respond while the instance warms up.
 
