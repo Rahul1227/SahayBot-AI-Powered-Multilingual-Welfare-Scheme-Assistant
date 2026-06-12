@@ -1,7 +1,56 @@
 import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
-import ReactMarkdown from 'react-markdown'
 import DocumentChecklist from './DocumentChecklist.jsx'
+
+// Lightweight inline markdown renderer — handles bold, italic, no extra deps
+function renderInline(text) {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g)
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**'))
+      return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>
+    if (part.startsWith('*') && part.endsWith('*'))
+      return <em key={i} className="italic">{part.slice(1, -1)}</em>
+    return part
+  })
+}
+
+function BotMessage({ text }) {
+  const lines = text.split('\n')
+  const elements = []
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i]
+    if (line.startsWith('### ')) {
+      elements.push(<p key={i} className="font-semibold mt-1">{renderInline(line.slice(4))}</p>)
+    } else if (line.startsWith('## ')) {
+      elements.push(<p key={i} className="font-bold mt-1">{renderInline(line.slice(3))}</p>)
+    } else if (line.startsWith('# ')) {
+      elements.push(<p key={i} className="font-bold mt-1">{renderInline(line.slice(2))}</p>)
+    } else if (line.startsWith('- ') || line.startsWith('* ')) {
+      const items = []
+      while (i < lines.length && (lines[i].startsWith('- ') || lines[i].startsWith('* '))) {
+        items.push(<li key={i}>{renderInline(lines[i].slice(2))}</li>)
+        i++
+      }
+      elements.push(<ul key={`ul${i}`} className="list-disc list-inside space-y-0.5 my-0.5">{items}</ul>)
+      continue
+    } else if (/^\d+\.\s/.test(line)) {
+      const items = []
+      while (i < lines.length && /^\d+\.\s/.test(lines[i])) {
+        items.push(<li key={i}>{renderInline(lines[i].replace(/^\d+\.\s/, ''))}</li>)
+        i++
+      }
+      elements.push(<ol key={`ol${i}`} className="list-decimal list-inside space-y-0.5 my-0.5">{items}</ol>)
+      continue
+    } else if (line.trim() === '') {
+      if (elements.length > 0) elements.push(<div key={i} className="h-1" />)
+    } else {
+      elements.push(<p key={i} className="mb-0.5 last:mb-0">{renderInline(line)}</p>)
+    }
+    i++
+  }
+  return <div className="space-y-0">{elements}</div>
+}
 
 const UI = {
   en: { placeholder: 'Type a message...', send: 'Send', typing: 'SahayBot is typing...', checklist: 'Get Document Checklist', lang: 'EN' },
@@ -44,25 +93,7 @@ function Message({ msg, language, onChecklistRequest }) {
               : 'bg-white text-gray-800 shadow-sm rounded-bl-sm'
           }`}
         >
-          {isUser ? msg.text : (
-            <ReactMarkdown
-              components={{
-                p:      ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
-                strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                em:     ({ children }) => <em className="italic">{children}</em>,
-                ul:     ({ children }) => <ul className="list-disc list-inside space-y-0.5 mt-1 mb-1">{children}</ul>,
-                ol:     ({ children }) => <ol className="list-decimal list-inside space-y-0.5 mt-1 mb-1">{children}</ol>,
-                li:     ({ children }) => <li className="ml-1">{children}</li>,
-                h1:     ({ children }) => <h1 className="font-bold text-base mt-2 mb-1">{children}</h1>,
-                h2:     ({ children }) => <h2 className="font-bold text-sm mt-2 mb-1">{children}</h2>,
-                h3:     ({ children }) => <h3 className="font-semibold mt-1 mb-0.5">{children}</h3>,
-                code:   ({ children }) => <code className="bg-gray-100 text-gray-800 px-1 rounded text-xs">{children}</code>,
-                hr:     () => <hr className="border-gray-200 my-2" />,
-              }}
-            >
-              {msg.text}
-            </ReactMarkdown>
-          )}
+          {isUser ? msg.text : <BotMessage text={msg.text} />}
         </div>
         {!isUser && msg.schemeId && (
           <button
