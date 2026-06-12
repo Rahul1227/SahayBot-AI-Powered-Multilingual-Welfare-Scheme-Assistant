@@ -4,6 +4,8 @@ require('dotenv').config();
 
 const express = require('express');
 const cors    = require('cors');
+const https   = require('https');
+const http    = require('http');
 
 const { handleChat }          = require('./chatHandler');
 const { getEligibleSchemes, ELIGIBILITY_QUESTIONS } = require('./eligibility');
@@ -392,6 +394,13 @@ app.post('/api/send-sms', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /ping — Ultra-lightweight keep-alive probe (used by self-ping interval)
+// ---------------------------------------------------------------------------
+app.get('/ping', (_req, res) => {
+  res.send('pong');
+});
+
+// ---------------------------------------------------------------------------
 // 404 catch-all
 // ---------------------------------------------------------------------------
 app.use((_req, res) => {
@@ -411,7 +420,72 @@ app.use((err, _req, res, _next) => {
 // ---------------------------------------------------------------------------
 app.listen(PORT, () => {
   console.log(`Welfare Chatbot Backend running on port ${PORT}`);
-  console.log(`Gemini API key: ${process.env.GEMINI_API_KEY ? 'loaded' : 'MISSING — set GEMINI_API_KEY in .env'}`);
+
+  // ── Startup environment-variable audit ────────────────────────────────────
+  // Logs clearly which env vars are present / missing so Render log tailing
+  // makes it immediately obvious why WhatsApp or Gemini might not work.
+  const REQUIRED_ENV_VARS = [
+    'GEMINI_API_KEY',
+    'TWILIO_ACCOUNT_SID',
+    'TWILIO_AUTH_TOKEN',
+    'TWILIO_WHATSAPP_NUMBER',
+  ];
+  const OPTIONAL_ENV_VARS = [
+    'TWILIO_PHONE_NUMBER',   // only needed for outbound SMS
+    'RENDER_EXTERNAL_URL',  // auto-set by Render; used for self-ping
+  ];
+
+  let missingCount = 0;
+  for (const v of REQUIRED_ENV_VARS) {
+    if (process.env[v]) {
+      console.log(`[env] ${v}: OK`);
+    } else {
+      console.error(`[env] ${v}: MISSING ← set this in Render dashboard`);
+      missingCount++;
+    }
+  }
+  for (const v of OPTIONAL_ENV_VARS) {
+    console.log(`[env] ${v}: ${process.env[v] ? 'set' : 'not set (optional)'}`);
+  }
+  if (missingCount > 0) {
+    console.error(`[env] WARNING: ${missingCount} required env var(s) missing — WhatsApp/Gemini will NOT work.`);
+  }
+
+  // ── Self-ping keep-alive (Render free tier anti-sleep) ────────────────────
+  // Render free tier instances sleep after ~15 min of inactivity. When Twilio
+  // calls the webhook, Render takes 30-60 s to wake — but Twilio's webhook
+  // timeout is only 15 s, so Twilio gives up before the server responds.
+  //
+  // Fix: ping ourselves every 10 minutes so the instance never goes to sleep.
+  // We only do this in production (when RENDER_EXTERNAL_URL is set by Render,
+  // or when NODE_ENV=production). In local dev this is a no-op.
+  const renderExternalUrl = process.env.RENDER_EXTERNAL_URL;
+  const isProduction = renderExternalUrl || process.env.NODE_ENV === 'production';
+
+  if (isProduction) {
+    const PING_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+    const pingUrl = renderExternalUrl
+      ? `${renderExternalUrl}/ping`
+      : `http://localhost:${PORT}/ping`;
+
+    console.log(`[keep-alive] Self-ping enabled → ${pingUrl} every 10 minutes`);
+
+    setInterval(() => {
+      const client = pingUrl.startsWith('https') ? https : http;
+      const req = client.get(pingUrl, (res) => {
+        // Drain the response so the socket closes cleanly
+        res.resume();
+        console.log(`[keep-alive] Ping OK (${res.statusCode}) at ${new Date().toISOString()}`);
+      });
+      req.on('error', (err) => {
+        console.error(`[keep-alive] Ping failed: ${err.message}`);
+      });
+      req.setTimeout(10000, () => {
+        req.destroy();
+        console.error('[keep-alive] Ping timed out after 10 s');
+      });
+    }, PING_INTERVAL_MS);
+  }
 });
 
 module.exports = app; // exported for testing
