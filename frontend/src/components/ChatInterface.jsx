@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
+import ReactMarkdown from 'react-markdown'
 import DocumentChecklist from './DocumentChecklist.jsx'
 
 const UI = {
@@ -43,7 +44,25 @@ function Message({ msg, language, onChecklistRequest }) {
               : 'bg-white text-gray-800 shadow-sm rounded-bl-sm'
           }`}
         >
-          {msg.text}
+          {isUser ? msg.text : (
+            <ReactMarkdown
+              components={{
+                p:      ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+                strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                em:     ({ children }) => <em className="italic">{children}</em>,
+                ul:     ({ children }) => <ul className="list-disc list-inside space-y-0.5 mt-1 mb-1">{children}</ul>,
+                ol:     ({ children }) => <ol className="list-decimal list-inside space-y-0.5 mt-1 mb-1">{children}</ol>,
+                li:     ({ children }) => <li className="ml-1">{children}</li>,
+                h1:     ({ children }) => <h1 className="font-bold text-base mt-2 mb-1">{children}</h1>,
+                h2:     ({ children }) => <h2 className="font-bold text-sm mt-2 mb-1">{children}</h2>,
+                h3:     ({ children }) => <h3 className="font-semibold mt-1 mb-0.5">{children}</h3>,
+                code:   ({ children }) => <code className="bg-gray-100 text-gray-800 px-1 rounded text-xs">{children}</code>,
+                hr:     () => <hr className="border-gray-200 my-2" />,
+              }}
+            >
+              {msg.text}
+            </ReactMarkdown>
+          )}
         </div>
         {!isUser && msg.schemeId && (
           <button
