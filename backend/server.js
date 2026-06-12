@@ -7,11 +7,10 @@ const cors    = require('cors');
 const https   = require('https');
 const http    = require('http');
 
-const { handleChat }          = require('./chatHandler');
+const { handleChat, callNvidia } = require('./chatHandler');
 const { getEligibleSchemes, ELIGIBILITY_QUESTIONS } = require('./eligibility');
-const { SCHEMES }             = require('./schemes');
-const { GoogleGenerativeAI }  = require('@google/generative-ai');
-const { handleWhatsAppMessage } = require('./whatsappHandler');
+const { SCHEMES }                = require('./schemes');
+const { handleWhatsAppMessage }  = require('./whatsappHandler');
 
 // ---------------------------------------------------------------------------
 // Twilio client — initialised lazily only when credentials are present
@@ -67,9 +66,9 @@ function getOrCreateSession(sessionId, language = 'en') {
 // Helper — generate an eligibility summary via Gemini
 // ---------------------------------------------------------------------------
 async function generateEligibilitySummary(eligibleSchemes, language) {
-  if (!process.env.GEMINI_API_KEY) {
-    // Fallback static summary if no API key
-    const count = eligibleSchemes.length;
+  const count = eligibleSchemes.length;
+
+  if (!process.env.NVIDIA_API_KEY) {
     if (language === 'hi') return `आप ${count} सरकारी योजनाओं के लिए पात्र हो सकते हैं।`;
     if (language === 'ta') return `நீங்கள் ${count} அரசாங்க திட்டங்களுக்கு தகுதியுடையவராக இருக்கலாம்.`;
     return `You may be eligible for ${count} government welfare scheme(s).`;
@@ -86,14 +85,12 @@ async function generateEligibilitySummary(eligibleSchemes, language) {
   };
 
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const result = await model.generateContent(promptByLang[language] || promptByLang.en);
-    return result.response.text().trim();
+    return await callNvidia(
+      [{ role: 'user', content: promptByLang[language] || promptByLang.en }],
+      { maxTokens: 80, temperature: 0.5 }
+    );
   } catch (err) {
-    // Non-fatal — return a static fallback
-    console.error('[eligibility summary] Gemini error:', err.message);
-    const count = eligibleSchemes.length;
+    console.error('[eligibility summary] NVIDIA error:', err.message);
     if (language === 'hi') return `आप ${count} सरकारी योजनाओं के लिए पात्र हो सकते हैं।`;
     if (language === 'ta') return `நீங்கள் ${count} அரசாங்க திட்டங்களுக்கு தகுதியுடையவராக இருக்கலாம்.`;
     return `You may be eligible for ${count} government welfare scheme(s).`;
@@ -152,7 +149,8 @@ app.post('/api/chat', async (req, res) => {
   } catch (err) {
     console.error('[POST /api/chat] Error:', err.originalError || err);
     const userMsg = err.userFacingMessage || 'An unexpected error occurred. Please try again.';
-    return res.status(500).json({ error: userMsg });
+    const status  = err.statusCode || 500;
+    return res.status(status).json({ error: userMsg });
   }
 });
 
@@ -425,7 +423,7 @@ app.listen(PORT, () => {
   // Logs clearly which env vars are present / missing so Render log tailing
   // makes it immediately obvious why WhatsApp or Gemini might not work.
   const REQUIRED_ENV_VARS = [
-    'GEMINI_API_KEY',
+    'NVIDIA_API_KEY',
     'TWILIO_ACCOUNT_SID',
     'TWILIO_AUTH_TOKEN',
     'TWILIO_WHATSAPP_NUMBER',
