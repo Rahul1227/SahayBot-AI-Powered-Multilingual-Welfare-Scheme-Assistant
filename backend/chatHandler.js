@@ -10,9 +10,6 @@ const { SCHEMES } = require('./schemes');
 let _genAI = null;
 function getGenAI() {
   if (!_genAI) {
-    if (!process.env.GEMINI_API_KEY) {
-      throw new Error('GEMINI_API_KEY is not set in environment variables.');
-    }
     _genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   }
   return _genAI;
@@ -239,10 +236,22 @@ async function handleChat(message, language = 'en', conversationHistory = []) {
   // Build system prompt with scheme context
   const systemPrompt = buildSystemPrompt(lang, retrievedSchemes);
 
+  // If API key is not configured, return a graceful fallback (200) instead of crashing (500)
+  if (!process.env.GEMINI_API_KEY) {
+    console.error('[chatHandler] GEMINI_API_KEY is not set — returning static fallback.');
+    const fallback =
+      lang === 'hi'
+        ? 'नमस्ते! SahayBot में आपका स्वागत है। AI चैट सेवा अभी उपलब्ध नहीं है, लेकिन आप "Get Started" बटन से अपनी पात्रता जाँच सकते हैं।'
+        : lang === 'ta'
+          ? 'வணக்கம்! AI சேவை தற்போது கிடைக்கவில்லை. "Get Started" பொத்தானை கிளிக் செய்து உங்கள் தகுதியை சரிபார்க்கலாம்.'
+          : 'Welcome to SahayBot! The AI chat service is temporarily unavailable. You can still find your eligible schemes by clicking "Get Started" and answering a few questions.';
+    return { reply: fallback, updatedHistory: conversationHistory };
+  }
+
   try {
     const genAI = getGenAI();
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash',
       systemInstruction: systemPrompt
     });
 
