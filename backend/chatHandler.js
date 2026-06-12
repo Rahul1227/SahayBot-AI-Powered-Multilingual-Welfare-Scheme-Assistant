@@ -162,6 +162,41 @@ async function callNvidia(messages, opts = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// Streaming variant — returns { stream, effectiveMessage } for SSE endpoints
+// ---------------------------------------------------------------------------
+
+async function getStreamingChat(message, language = 'en', conversationHistory = []) {
+  const validLanguages = ['en', 'hi', 'ta'];
+  const lang = validLanguages.includes(language) ? language : 'en';
+
+  const isGreeting = !message || message.trim() === '';
+  const effectiveMessage = isGreeting
+    ? (lang === 'hi' ? 'नमस्ते' : lang === 'ta' ? 'வணக்கம்' : 'Hello')
+    : message.trim();
+
+  const retrievedSchemes = retrieveSchemes(effectiveMessage, 3);
+  const systemPrompt     = buildSystemPrompt(lang, retrievedSchemes);
+
+  const client = getClient();
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...conversationHistory,
+    { role: 'user',   content: effectiveMessage },
+  ];
+
+  const stream = await client.chat.completions.create({
+    model:       NVIDIA_MODEL,
+    messages,
+    max_tokens:  512,
+    temperature: 0.6,
+    top_p:       1.0,
+    stream:      true,
+  });
+
+  return { stream, effectiveMessage };
+}
+
+// ---------------------------------------------------------------------------
 // Main chat handler
 // ---------------------------------------------------------------------------
 
@@ -231,4 +266,4 @@ async function handleChat(message, language = 'en', conversationHistory = []) {
   }
 }
 
-module.exports = { handleChat, retrieveSchemes, callNvidia };
+module.exports = { handleChat, retrieveSchemes, callNvidia, getStreamingChat };

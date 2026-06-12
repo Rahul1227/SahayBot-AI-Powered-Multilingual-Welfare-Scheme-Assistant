@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-import axios from 'axios'
 import DocumentChecklist from './DocumentChecklist.jsx'
 
 // Lightweight inline markdown renderer — handles bold, italic, no extra deps
@@ -141,21 +140,63 @@ export default function ChatInterface({ language, sessionId, initialScheme }) {
 
   async function sendMessage(text) {
     setIsTyping(true)
+    let streamMsgId = null
+
     try {
-      const res = await axios.post('/api/chat', {
-        message: text,
-        sessionId,
-        language,
-        ...(initialScheme ? { schemeId: initialScheme.id } : {}),
+      const res = await fetch('/api/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, sessionId, language }),
       })
-      const data = res.data
-      addBotMessage(data.reply || data.message || 'Hello! How can I help you?', {
-        schemeId: data.schemeId,
-        schemeName: data.schemeName,
-      })
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop()
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const raw = line.slice(6)
+          if (raw === '[DONE]') continue
+
+          let parsed
+          try { parsed = JSON.parse(raw) } catch { continue }
+
+          if (parsed.error) throw new Error(parsed.error)
+
+          if (parsed.delta) {
+            if (streamMsgId === null) {
+              streamMsgId = Date.now()
+              setIsTyping(false)
+              setMessages(prev => [...prev, {
+                id: streamMsgId,
+                role: 'bot',
+                text: parsed.delta,
+                time: getTime(),
+              }])
+            } else {
+              setMessages(prev => prev.map(m =>
+                m.id === streamMsgId ? { ...m, text: m.text + parsed.delta } : m
+              ))
+            }
+          }
+        }
+      }
     } catch (err) {
-      console.error('Chat error:', err)
-      addBotMessage('Sorry, I could not connect to the server. Please try again.')
+      console.error('Streaming error:', err)
+      setIsTyping(false)
+      if (streamMsgId === null) {
+        addBotMessage('Sorry, I could not connect to the server. Please try again.')
+      }
     } finally {
       setIsTyping(false)
     }

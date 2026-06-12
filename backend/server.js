@@ -7,7 +7,7 @@ const cors    = require('cors');
 const https   = require('https');
 const http    = require('http');
 
-const { handleChat, callNvidia } = require('./chatHandler');
+const { handleChat, callNvidia, getStreamingChat } = require('./chatHandler');
 const { getEligibleSchemes, ELIGIBILITY_QUESTIONS } = require('./eligibility');
 const { SCHEMES }                = require('./schemes');
 const { handleWhatsAppMessage }  = require('./whatsappHandler');
@@ -151,6 +151,70 @@ app.post('/api/chat', async (req, res) => {
     const userMsg = err.userFacingMessage || 'An unexpected error occurred. Please try again.';
     const status  = err.statusCode || 500;
     return res.status(status).json({ error: userMsg });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/chat/stream — SSE streaming variant
+// Body: { message: string, sessionId: string, language: 'en'|'hi'|'ta' }
+// Streams: data: {"delta":"..."}\n\n  …  data: [DONE]\n\n
+// ---------------------------------------------------------------------------
+app.post('/api/chat/stream', async (req, res) => {
+  try {
+    const { message, sessionId, language = 'en' } = req.body;
+
+    if (!sessionId || typeof sessionId !== 'string' || sessionId.trim() === '') {
+      return res.status(400).json({ error: 'sessionId is required.' });
+    }
+
+    const validLanguages = ['en', 'hi', 'ta'];
+    const lang = validLanguages.includes(language) ? language : 'en';
+
+    res.writeHead(200, {
+      'Content-Type':  'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection':    'keep-alive',
+    });
+
+    const session = getOrCreateSession(sessionId.trim(), lang);
+    session.language = lang;
+
+    if (!process.env.NVIDIA_API_KEY) {
+      const fallback =
+        lang === 'hi' ? 'AI सेवा उपलब्ध नहीं है।' :
+        lang === 'ta' ? 'AI சேவை கிடைக்கவில்லை.'  :
+                        'AI chat service is temporarily unavailable.';
+      res.write(`data: ${JSON.stringify({ delta: fallback })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      return res.end();
+    }
+
+    const { stream, effectiveMessage } = await getStreamingChat(message, lang, session.history);
+
+    let fullReply = '';
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content;
+      if (delta) {
+        fullReply += delta;
+        res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+      }
+    }
+
+    session.history = [
+      ...session.history,
+      { role: 'user',      content: effectiveMessage },
+      { role: 'assistant', content: fullReply },
+    ];
+
+    res.write('data: [DONE]\n\n');
+    res.end();
+
+  } catch (err) {
+    console.error('[POST /api/chat/stream] Error:', err.message);
+    try {
+      res.write(`data: ${JSON.stringify({ error: 'Service error. Please try again.' })}\n\n`);
+      res.end();
+    } catch (_) {}
   }
 });
 
