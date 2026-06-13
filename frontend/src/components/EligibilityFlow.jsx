@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import axios from 'axios'
 import SchemeCard from './SchemeCard.jsx'
+import QuizComponent from './QuizComponent.jsx'
 
 const QUESTIONS = {
   en: [
@@ -156,9 +157,9 @@ const PERSONA_PREFILL = {
 }
 
 const UI = {
-  en: { checking: 'Checking your eligibility...', results: 'Schemes you qualify for', noResults: 'No schemes found for your profile. Try chatting freely!', learnMore: 'Chat About This', skip: 'Skip & Chat Freely', step: 'Step', of: 'of', back: 'Back' },
-  hi: { checking: 'आपकी पात्रता जाँच रही है...', results: 'आपके लिए योजनाएं', noResults: 'आपकी प्रोफ़ाइल के लिए कोई योजना नहीं मिली। सीधे चैट करें!', learnMore: 'इसके बारे में चैट करें', skip: 'छोड़ें और चैट करें', step: 'चरण', of: 'में से', back: 'वापस' },
-  ta: { checking: 'உங்கள் தகுதியை சரிபார்க்கிறோம்...', results: 'உங்களுக்கு தகுதியான திட்டங்கள்', noResults: 'உங்கள் சுயவிவரத்திற்கு திட்டங்கள் இல்லை. நேரடியாக அரட்டையடிக்கவும்!', learnMore: 'இதைப் பற்றி அரட்டை', skip: 'தவிர்த்து அரட்டையடி', step: 'படி', of: 'இல்', back: 'திரும்பு' },
+  en: { checking: 'Checking your eligibility...', results: 'Schemes you qualify for', noResults: 'No schemes found for your profile. Try chatting freely!', learnMore: 'Chat About This', skip: 'Skip & Chat Freely', step: 'Step', of: 'of', back: 'Back', takeQuiz: 'Test Your Understanding' },
+  hi: { checking: 'आपकी पात्रता जाँच रही है...', results: 'आपके लिए योजनाएं', noResults: 'आपकी प्रोफ़ाइल के लिए कोई योजना नहीं मिली। सीधे चैट करें!', learnMore: 'इसके बारे में चैट करें', skip: 'छोड़ें और चैट करें', step: 'चरण', of: 'में से', back: 'वापस', takeQuiz: 'अपनी समझ जाँचें' },
+  ta: { checking: 'உங்கள் தகுதியை சரிபார்க்கிறோம்...', results: 'உங்களுக்கு தகுதியான திட்டங்கள்', noResults: 'உங்கள் சுயவிவரத்திற்கு திட்டங்கள் இல்லை. நேரடியாக அரட்டையடிக்கவும்!', learnMore: 'இதைப் பற்றி அரட்டை', skip: 'தவிர்த்து அரட்டையடி', step: 'படி', of: 'இல்', back: 'திரும்பு', takeQuiz: 'உங்கள் புரிதலை சோதியுங்கள்' },
 }
 
 export default function EligibilityFlow({ language, persona, onComplete, onSkip }) {
@@ -171,6 +172,7 @@ export default function EligibilityFlow({ language, persona, onComplete, onSkip 
   const [loading, setLoading] = useState(false)
   const [schemes, setSchemes] = useState(null)
   const [error, setError] = useState(null)
+  const [showQuiz, setShowQuiz] = useState(false)
 
   const visibleQuestions = questions.filter(q => !q.showIf || q.showIf(answers))
   const currentQuestion = visibleQuestions[stepIndex]
@@ -242,6 +244,21 @@ export default function EligibilityFlow({ language, persona, onComplete, onSkip 
               onAction={() => onComplete(scheme)}
             />
           ))}
+
+          {/* Quiz section — shown inline after the scheme cards */}
+          {!showQuiz ? (
+            <button
+              onClick={() => setShowQuiz(true)}
+              className="w-full py-2.5 text-sm font-medium border-2 border-green-400 text-green-700 rounded-xl hover:bg-green-50 transition-colors mt-2"
+            >
+              {t.takeQuiz}
+            </button>
+          ) : (
+            <QuizComponent
+              language={language}
+              onDismiss={() => setShowQuiz(false)}
+            />
+          )}
         </div>
         <div className="p-4 border-t">
           <button
